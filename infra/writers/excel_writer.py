@@ -8,6 +8,7 @@ class ExcelWriter:
         output_path.mkdir(exist_ok=True)
 
         file = output_path / filename
+        print(file.resolve())
 
         df.to_excel(file, index=False)
 

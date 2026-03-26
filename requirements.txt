@@ -1,0 +1,6 @@
+requests
+pandas
+lxml
+openpyxl
+selenium
+webdriver
