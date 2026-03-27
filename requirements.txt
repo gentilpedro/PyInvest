@@ -1,6 +1,5 @@
-requests
-pandas
-lxml
-openpyxl
-selenium
-webdriver
+pandas==2.2.2
+requests==2.32.3
+lxml==5.2.1
+openpyxl==3.1.5
+undetected-chromedriver==3.5.5
