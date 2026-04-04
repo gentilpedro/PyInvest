@@ -1,37 +1,42 @@
-import undetected_chromedriver as uc
 import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 import time
-
-
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from io import StringIO
 
 class FundamentusClient:
     URL = "https://www.fundamentus.com.br/fii_resultado.php"
 
     def fetch_fiis(self) -> pd.DataFrame:
-        options = uc.ChromeOptions()
-        options.headless = False  # pode testar False se quiser ver
+        options = Options()
+        options.add_argument("--start-maximized")
+        options.add_argument("--disable-blink-features=AutomationControlled")
 
-        driver = uc.Chrome(version_main=146, options=options)
+        driver = webdriver.Chrome(options=options)
+
         driver.get(self.URL)
-        
-        WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.XPATH, "//table//a"))
-        )
-        
-        time.sleep(3)
+
+        time.sleep(5)
 
         html = driver.page_source
 
-        try:
-            driver.quit()
-        except Exception as e:
-            print(f"Erro ao fechar o navegador: {e}")
-            pass
-    
-        df = pd.read_html(html)[0]
+        driver.quit()
+
+
+        tables = pd.read_html(StringIO(html))
+
+        if not tables:
+            raise Exception("Nenhuma tabela encontrada")
+
+        df = None
+        for table in tables:
+            if "Papel" in table.columns:
+                df = table
+                break
+
+        if df is None:
+            raise Exception("Tabela de FIIs não encontrada")
+
         df.columns = [col.strip() for col in df.columns]
 
         return df
