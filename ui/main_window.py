@@ -4,10 +4,11 @@ import tkinter as tk
 import pandas as pd
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import INFO, OUTLINE, PRIMARY, SECONDARY, SUCCESS
-from ttkbootstrap.dialogs import Messagebox
+from ttkbootstrap.dialogs import Messagebox, Querybox
 from tkinter import filedialog
 
 from app.domain.filters.fii_filter import FiiFilter, FiiFilterCriteria
+from infra.storage.filter_preset_store import FilterPresetStore
 from infra.writers.excel_writer import ExcelWriter
 from ui.fetch_worker import FetchFiisWorker
 from ui.fii_table import FiiTable
@@ -29,6 +30,7 @@ class MainWindow(ttk.Window):
 
         self.filter_engine = FiiFilter()
         self.writer = ExcelWriter()
+        self.preset_store = FilterPresetStore()
         self.result_queue: "queue.Queue | None" = None
 
         self.dy_min_var = tk.DoubleVar(value=0.0)
@@ -41,6 +43,7 @@ class MainWindow(ttk.Window):
         self.cap_rate_min_var = tk.DoubleVar(value=0.0)
         self.vacancia_max_var = tk.DoubleVar(value=VACANCIA_MAX_LIMIT)
         self.ticker_var = tk.StringVar(value="")
+        self.preset_var = tk.StringVar(value="")
         self.row_count_var = tk.StringVar(value="0 FIIs")
         self.status_var = tk.StringVar(value='Pronto. Clique em "Buscar dados" para começar.')
 
@@ -115,6 +118,25 @@ class MainWindow(ttk.Window):
             widgets.append(widget)
 
         self.segmento_combo = widgets[8]
+
+        ttk.Separator(panel).grid(row=4, column=0, columnspan=6, sticky="ew", pady=(12, 10))
+
+        ttk.Label(panel, text="Preset:").grid(row=5, column=0, padx=(0, 6), pady=4, sticky="w")
+        self.preset_combo = ttk.Combobox(
+            panel, textvariable=self.preset_var, state="readonly",
+            values=self.preset_store.list_names(), width=18,
+        )
+        self.preset_combo.grid(row=5, column=1, padx=6, pady=4, sticky="w")
+
+        ttk.Button(
+            panel, text="Carregar preset", command=self.on_load_preset_clicked, bootstyle=(INFO, OUTLINE)
+        ).grid(row=5, column=2, padx=(18, 6), pady=4, sticky="w")
+        ttk.Button(
+            panel, text="Salvar preset...", command=self.on_save_preset_clicked, bootstyle=(SUCCESS, OUTLINE)
+        ).grid(row=5, column=3, padx=6, pady=4, sticky="w")
+        ttk.Button(
+            panel, text="Excluir preset", command=self.on_delete_preset_clicked, bootstyle=(SECONDARY, OUTLINE)
+        ).grid(row=5, column=4, padx=6, pady=4, sticky="w")
 
     def _build_actions_row(self, parent):
         row = ttk.Frame(parent)
@@ -205,14 +227,11 @@ class MainWindow(ttk.Window):
     # ------------------------------------------------------------------
     # Filtering
     # ------------------------------------------------------------------
-    def on_apply_filters_clicked(self):
-        if self.raw_df is None:
-            return
-
+    def _criteria_from_vars(self) -> FiiFilterCriteria:
         pvp_value = self.pvp_max_var.get()
         vacancia_value = self.vacancia_max_var.get()
 
-        criteria = FiiFilterCriteria(
+        return FiiFilterCriteria(
             dy_min=self.dy_min_var.get() or None,
             pvp_max=pvp_value if pvp_value < PVP_MAX_LIMIT else None,
             liquidez_min=self.liquidez_min_var.get() or None,
@@ -225,25 +244,77 @@ class MainWindow(ttk.Window):
             ticker=self.ticker_var.get().strip() or None,
         )
 
+    def _apply_criteria_to_vars(self, criteria: FiiFilterCriteria):
+        self.dy_min_var.set(criteria.dy_min or 0.0)
+        self.pvp_max_var.set(criteria.pvp_max if criteria.pvp_max is not None else PVP_MAX_LIMIT)
+        self.liquidez_min_var.set(criteria.liquidez_min or 0.0)
+        self.segmento_var.set(criteria.segmento or TODOS_SEGMENTOS)
+        self.ffo_yield_min_var.set(criteria.ffo_yield_min or 0.0)
+        self.valor_mercado_min_var.set(criteria.valor_mercado_min or 0.0)
+        self.qtd_imoveis_min_var.set(criteria.qtd_imoveis_min or 0)
+        self.cap_rate_min_var.set(criteria.cap_rate_min or 0.0)
+        self.vacancia_max_var.set(criteria.vacancia_max if criteria.vacancia_max is not None else VACANCIA_MAX_LIMIT)
+        self.ticker_var.set(criteria.ticker or "")
+
+    def on_apply_filters_clicked(self):
+        if self.raw_df is None:
+            return
+
+        criteria = self._criteria_from_vars()
         filtered = self.filter_engine.apply(self.raw_df, criteria)
         self._show_dataframe(filtered)
         self.status_var.set(f"{len(filtered)} de {len(self.raw_df)} FIIs após aplicar os filtros.")
 
     def on_clear_filters_clicked(self):
-        self.dy_min_var.set(0.0)
-        self.pvp_max_var.set(PVP_MAX_LIMIT)
-        self.liquidez_min_var.set(0.0)
-        self.segmento_var.set(TODOS_SEGMENTOS)
-        self.ffo_yield_min_var.set(0.0)
-        self.valor_mercado_min_var.set(0.0)
-        self.qtd_imoveis_min_var.set(0)
-        self.cap_rate_min_var.set(0.0)
-        self.vacancia_max_var.set(VACANCIA_MAX_LIMIT)
-        self.ticker_var.set("")
+        self._apply_criteria_to_vars(FiiFilterCriteria())
 
         if self.raw_df is not None:
             self._show_dataframe(self.raw_df)
             self.status_var.set(f"{len(self.raw_df)} FIIs (sem filtros).")
+
+    # ------------------------------------------------------------------
+    # Filter presets
+    # ------------------------------------------------------------------
+    def on_save_preset_clicked(self):
+        name = Querybox.get_string(
+            prompt="Nome do preset:", title="Salvar preset de filtros", parent=self
+        )
+        name = (name or "").strip()
+        if not name:
+            return
+
+        self.preset_store.save(name, self._criteria_from_vars())
+        self.preset_combo.configure(values=self.preset_store.list_names())
+        self.preset_var.set(name)
+        self.status_var.set(f'Preset "{name}" salvo.')
+
+    def on_load_preset_clicked(self):
+        name = self.preset_var.get()
+        if not name:
+            Messagebox.show_info("Selecione um preset na lista.", "Nenhum preset selecionado", parent=self)
+            return
+
+        criteria = self.preset_store.load(name)
+        self._apply_criteria_to_vars(criteria)
+
+        if self.raw_df is not None:
+            self.on_apply_filters_clicked()
+        self.status_var.set(f'Preset "{name}" carregado.')
+
+    def on_delete_preset_clicked(self):
+        name = self.preset_var.get()
+        if not name:
+            Messagebox.show_info("Selecione um preset na lista.", "Nenhum preset selecionado", parent=self)
+            return
+
+        confirmed = Messagebox.yesno(f'Excluir o preset "{name}"?', "Confirmar exclusão", parent=self)
+        if confirmed != "Yes":
+            return
+
+        self.preset_store.delete(name)
+        self.preset_combo.configure(values=self.preset_store.list_names())
+        self.preset_var.set("")
+        self.status_var.set(f'Preset "{name}" excluído.')
 
     # ------------------------------------------------------------------
     # Saving
