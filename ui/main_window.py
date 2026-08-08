@@ -9,9 +9,11 @@ from tkinter import filedialog
 
 from app.domain.filters.fii_filter import FiiFilter, FiiFilterCriteria
 from app.domain.ranking.fii_ranking import FiiRanking
+from app.use_cases.fetch_fiis import FetchFiisUseCase
+from app.use_cases.fetch_stocks import FetchStocksUseCase
 from infra.storage.filter_preset_store import FilterPresetStore
 from infra.writers.excel_writer import ExcelWriter
-from ui.fetch_worker import FetchFiisWorker
+from ui.fetch_worker import FetchWorker
 from ui.fii_table import SCORE_HIGH_COLOR, SCORE_HIGH_THRESHOLD, SCORE_LOW_COLOR, SCORE_LOW_THRESHOLD, FiiTable
 from ui.resources import resource_path
 
@@ -19,6 +21,8 @@ TODOS_SEGMENTOS = "Todos"
 PVP_MAX_LIMIT = 100.0
 VACANCIA_MAX_LIMIT = 100.0
 THEME = "flatly"
+ASSET_FIIS = "FIIs"
+ASSET_STOCKS = "Ações"
 
 
 class MainWindow(ttk.Window):
@@ -46,6 +50,7 @@ class MainWindow(ttk.Window):
         self.vacancia_max_var = tk.DoubleVar(value=VACANCIA_MAX_LIMIT)
         self.ticker_var = tk.StringVar(value="")
         self.preset_var = tk.StringVar(value="")
+        self.asset_type_var = tk.StringVar(value=ASSET_FIIS)
         self.row_count_var = tk.StringVar(value="0 FIIs")
         self.status_var = tk.StringVar(value='Pronto. Clique em "Buscar dados" para começar.')
 
@@ -120,6 +125,7 @@ class MainWindow(ttk.Window):
             widgets.append(widget)
 
         self.segmento_combo = widgets[8]
+        self.filter_widgets = widgets
 
         ttk.Separator(panel).grid(row=4, column=0, columnspan=6, sticky="ew", pady=(12, 10))
 
@@ -130,19 +136,33 @@ class MainWindow(ttk.Window):
         )
         self.preset_combo.grid(row=5, column=1, padx=6, pady=4, sticky="w")
 
-        ttk.Button(
+        self.load_preset_button = ttk.Button(
             panel, text="Carregar preset", command=self.on_load_preset_clicked, bootstyle=(INFO, OUTLINE)
-        ).grid(row=5, column=2, padx=(18, 6), pady=4, sticky="w")
-        ttk.Button(
+        )
+        self.load_preset_button.grid(row=5, column=2, padx=(18, 6), pady=4, sticky="w")
+        self.save_preset_button = ttk.Button(
             panel, text="Salvar preset...", command=self.on_save_preset_clicked, bootstyle=(SUCCESS, OUTLINE)
-        ).grid(row=5, column=3, padx=6, pady=4, sticky="w")
-        ttk.Button(
+        )
+        self.save_preset_button.grid(row=5, column=3, padx=6, pady=4, sticky="w")
+        self.delete_preset_button = ttk.Button(
             panel, text="Excluir preset", command=self.on_delete_preset_clicked, bootstyle=(SECONDARY, OUTLINE)
-        ).grid(row=5, column=4, padx=6, pady=4, sticky="w")
+        )
+        self.delete_preset_button.grid(row=5, column=4, padx=6, pady=4, sticky="w")
+
+        self.preset_widgets = [
+            self.preset_combo, self.load_preset_button, self.save_preset_button, self.delete_preset_button
+        ]
 
     def _build_actions_row(self, parent):
         row = ttk.Frame(parent)
         row.pack(fill="x", pady=(0, 4))
+
+        ttk.Label(row, text="Tipo:").pack(side="left", padx=(0, 6))
+        self.asset_type_combo = ttk.Combobox(
+            row, textvariable=self.asset_type_var, state="readonly",
+            values=[ASSET_FIIS, ASSET_STOCKS], width=8,
+        )
+        self.asset_type_combo.pack(side="left", padx=(0, 12))
 
         self.fetch_button = ttk.Button(row, text="Buscar dados", command=self.on_fetch_clicked, bootstyle=PRIMARY)
         self.fetch_button.pack(side="left")
@@ -168,7 +188,7 @@ class MainWindow(ttk.Window):
         self.save_button.pack(side="right")
 
     def _build_table(self, parent):
-        legend = ttk.Frame(parent)
+        self.score_legend = legend = ttk.Frame(parent)
         legend.pack(fill="x", pady=(0, 4))
         ttk.Label(
             legend, text="  ", background=SCORE_HIGH_COLOR, relief="solid", borderwidth=1
@@ -190,16 +210,24 @@ class MainWindow(ttk.Window):
     # ------------------------------------------------------------------
     # Fetching
     # ------------------------------------------------------------------
+    def _is_fiis_selected(self) -> bool:
+        return self.asset_type_var.get() == ASSET_FIIS
+
     def on_fetch_clicked(self):
         self.fetch_button.configure(state="disabled")
+        self.asset_type_combo.configure(state="disabled")
         self.apply_filters_button.configure(state="disabled")
         self.clear_filters_button.configure(state="disabled")
         self.save_button.configure(state="disabled")
-        self.status_var.set("Buscando dados no Fundamentus... isso pode levar alguns segundos.")
+        asset_label = self.asset_type_var.get()
+        self.status_var.set(f"Buscando {asset_label} no Fundamentus... isso pode levar alguns segundos.")
         self.config(cursor="watch")
 
+        fetch_callable = (
+            FetchFiisUseCase().execute if self._is_fiis_selected() else FetchStocksUseCase().execute
+        )
         self.result_queue = queue.Queue()
-        worker = FetchFiisWorker(self.result_queue)
+        worker = FetchWorker(fetch_callable, self.result_queue)
         worker.start()
         self.after(100, self._poll_fetch_result)
 
@@ -218,24 +246,47 @@ class MainWindow(ttk.Window):
     def _on_fetch_finished(self, df: pd.DataFrame):
         self.config(cursor="")
         self.fetch_button.configure(state="normal")
-        self.apply_filters_button.configure(state="normal")
-        self.clear_filters_button.configure(state="normal")
+        self.asset_type_combo.configure(state="readonly")
         self.save_button.configure(state="normal")
 
-        self.raw_df = self.ranking_engine.add_score(df)
+        is_fiis = self._is_fiis_selected()
+        self._set_fii_features_enabled(is_fiis)
 
-        segments = [TODOS_SEGMENTOS] + self.filter_engine.segments(self.raw_df)
-        self.segmento_combo.configure(values=segments)
-        self.segmento_var.set(TODOS_SEGMENTOS)
+        if is_fiis:
+            self.raw_df = self.ranking_engine.add_score(df)
+            segments = [TODOS_SEGMENTOS] + self.filter_engine.segments(self.raw_df)
+            self.segmento_combo.configure(values=segments)
+            self.segmento_var.set(TODOS_SEGMENTOS)
+        else:
+            self.raw_df = df
 
         self._show_dataframe(self.raw_df)
-        self.status_var.set(f"{len(self.raw_df)} FIIs carregados.")
+        self.status_var.set(f"{len(self.raw_df)} {self.asset_type_var.get()} carregados.")
 
     def _on_fetch_failed(self, message: str):
         self.config(cursor="")
         self.fetch_button.configure(state="normal")
+        self.asset_type_combo.configure(state="readonly")
         self.status_var.set("Falha ao buscar dados.")
         Messagebox.show_error(message, "Erro ao buscar dados", parent=self)
+
+    def _set_fii_features_enabled(self, enabled: bool):
+        widget_state = "normal" if enabled else "disabled"
+        combo_state = "readonly" if enabled else "disabled"
+
+        if enabled:
+            self.score_legend.pack(fill="x", pady=(0, 4), before=self.table)
+        else:
+            self.score_legend.pack_forget()
+
+        self.apply_filters_button.configure(state=widget_state)
+        self.clear_filters_button.configure(state=widget_state)
+
+        for widget in self.filter_widgets + self.preset_widgets:
+            if isinstance(widget, ttk.Combobox):
+                widget.configure(state=combo_state)
+            else:
+                widget.configure(state=widget_state)
 
     # ------------------------------------------------------------------
     # Filtering
@@ -270,7 +321,7 @@ class MainWindow(ttk.Window):
         self.ticker_var.set(criteria.ticker or "")
 
     def on_apply_filters_clicked(self):
-        if self.raw_df is None:
+        if self.raw_df is None or not self._is_fiis_selected():
             return
 
         criteria = self._criteria_from_vars()
@@ -279,6 +330,9 @@ class MainWindow(ttk.Window):
         self.status_var.set(f"{len(filtered)} de {len(self.raw_df)} FIIs após aplicar os filtros.")
 
     def on_clear_filters_clicked(self):
+        if not self._is_fiis_selected():
+            return
+
         self._apply_criteria_to_vars(FiiFilterCriteria())
 
         if self.raw_df is not None:
@@ -337,10 +391,11 @@ class MainWindow(ttk.Window):
             Messagebox.show_info("Não há dados para salvar.", "Nada para salvar", parent=self)
             return
 
+        default_name = "fiis.xlsx" if self._is_fiis_selected() else "acoes.xlsx"
         path = filedialog.asksaveasfilename(
             title="Salvar como XLSX",
             defaultextension=".xlsx",
-            initialfile="fiis.xlsx",
+            initialfile=default_name,
             filetypes=[("Planilhas Excel", "*.xlsx")],
         )
         if not path:
@@ -360,4 +415,4 @@ class MainWindow(ttk.Window):
     def _show_dataframe(self, df: pd.DataFrame):
         self.filtered_df = df
         self.table.set_dataframe(df)
-        self.row_count_var.set(f"{len(df)} FIIs")
+        self.row_count_var.set(f"{len(df)} {self.asset_type_var.get()}")
