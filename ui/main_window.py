@@ -8,6 +8,7 @@ from ttkbootstrap.dialogs import Messagebox, Querybox
 from tkinter import filedialog
 
 from app.domain.filters.fii_filter import FiiFilter, FiiFilterCriteria
+from app.domain.ranking.fii_ranking import FiiRanking
 from infra.storage.filter_preset_store import FilterPresetStore
 from infra.writers.excel_writer import ExcelWriter
 from ui.fetch_worker import FetchFiisWorker
@@ -29,6 +30,7 @@ class MainWindow(ttk.Window):
         self.filtered_df: pd.DataFrame = pd.DataFrame()
 
         self.filter_engine = FiiFilter()
+        self.ranking_engine = FiiRanking()
         self.writer = ExcelWriter()
         self.preset_store = FilterPresetStore()
         self.result_queue: "queue.Queue | None" = None
@@ -209,14 +211,14 @@ class MainWindow(ttk.Window):
         self.clear_filters_button.configure(state="normal")
         self.save_button.configure(state="normal")
 
-        self.raw_df = df
+        self.raw_df = self.ranking_engine.add_score(df)
 
-        segments = [TODOS_SEGMENTOS] + self.filter_engine.segments(df)
+        segments = [TODOS_SEGMENTOS] + self.filter_engine.segments(self.raw_df)
         self.segmento_combo.configure(values=segments)
         self.segmento_var.set(TODOS_SEGMENTOS)
 
-        self._show_dataframe(df)
-        self.status_var.set(f"{len(df)} FIIs carregados.")
+        self._show_dataframe(self.raw_df)
+        self.status_var.set(f"{len(self.raw_df)} FIIs carregados.")
 
     def _on_fetch_failed(self, message: str):
         self.config(cursor="")
