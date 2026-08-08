@@ -1,32 +1,25 @@
-from infra.external.fundamentus.fundamentus_client import FundamentusClient
+from app.use_cases.fetch_fiis import FetchFiisUseCase
 from infra.writers.excel_writer import ExcelWriter
-#from app.domain.filters.fii_filter import FiiFilter
 
 
 class AnalyzeAssetsUseCase:
+    """CLI fallback: fetches all FIIs and saves them to output/fiis.xlsx without filtering.
+
+    For interactive filtering and a data preview before exporting, use `main.py` (GUI).
+    """
+
     def __init__(self):
-        self.client = FundamentusClient()
+        self.fetch_use_case = FetchFiisUseCase()
         self.writer = ExcelWriter()
 
     def execute(self):
-        print("🔎 Buscando dados...")
+        print("Buscando dados...")
 
-        df = self.client.fetch_fiis()
+        df = self.fetch_use_case.execute()
 
-        print(df.head())  # debug opcional
+        print(df.head())
 
-        print("💾 Salvando Excel...")
+        print("Salvando Excel...")
 
         self.writer.save(df, "fiis.xlsx")
-        print("✅ Finalizado!")
-
-        # filter_engine = FiiFilter()
-        #
-        # filters = {
-        #     "dy_min": 8,
-        #     "pvp_max": 1.0,
-        #     "liquidez_min": 100000
-        # }
-        #
-        # df = filter_engine.apply(df, filters)
-        # df = filter_engine.rank(df)
+        print("Finalizado!")

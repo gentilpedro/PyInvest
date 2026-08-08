@@ -8,8 +8,12 @@ class ExcelWriter:
         output_path.mkdir(exist_ok=True)
 
         file = output_path / filename
-        print(file.resolve())
+        self.save_as(df, file)
+
+    def save_as(self, df: pd.DataFrame, path: str | Path):
+        file = Path(path)
+        file.parent.mkdir(parents=True, exist_ok=True)
 
         df.to_excel(file, index=False)
 
-        print(f"Arquivo salvo em: {file}")
+        print(f"Arquivo salvo em: {file.resolve()}")
