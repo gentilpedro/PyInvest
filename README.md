@@ -13,3 +13,7 @@ pip install -r requirements-dev.txt
 python build_app.py
 ```
 O executável fica em `dist/PyInvest.exe` (single-file, sem console). Se algo travar antes da janela abrir, um `pyinvest_error.log` é escrito ao lado do .exe com o erro.
+
+## CI/CD
+- **PR Checks** (`.github/workflows/pr-checks.yml`): roda em todo push para um PR contra `main` — compila os módulos, instancia a UI e builda o `.exe` como smoke test. Não cria tag nem release.
+- **Release** (`.github/workflows/release.yml`): roda a cada push em `main` (ou seja, a cada PR mergeado). Repete as validações, builda o `.exe`, cria automaticamente a próxima tag `vX.Y.Z` (bump de patch) e publica uma GitHub Release com o executável anexado.
