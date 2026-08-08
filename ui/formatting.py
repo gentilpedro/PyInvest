@@ -1,8 +1,15 @@
 import math
 
-PERCENT_COLUMNS = {"FFO Yield", "Dividend Yield", "Cap Rate", "Vacância Média"}
-INTEGER_COLUMNS = {"Valor de Mercado", "Liquidez", "Qtd de imóveis"}
-DECIMAL_COLUMNS = {"Cotação", "P/VP", "Preço do m2", "Aluguel por m2", "Score"}
+PERCENT_COLUMNS = {
+    "FFO Yield", "Dividend Yield", "Cap Rate", "Vacância Média",
+    "Div.Yield", "Mrg Bruta", "Mrg Ebit", "Mrg. Líq.", "ROIC", "ROE", "Cresc. Rec.5a",
+}
+INTEGER_COLUMNS = {"Valor de Mercado", "Liquidez", "Qtd de imóveis", "Liq.2meses", "Patrim. Líq"}
+DECIMAL_COLUMNS = {
+    "Cotação", "P/VP", "Preço do m2", "Aluguel por m2", "Score",
+    "P/L", "PSR", "P/Ativo", "P/Cap.Giro", "P/EBIT", "P/Ativ Circ.Liq",
+    "EV/EBIT", "EV/EBITDA", "Liq. Corr.", "Dív.Líq/ Patrim.",
+}
 NUMERIC_COLUMNS = PERCENT_COLUMNS | INTEGER_COLUMNS | DECIMAL_COLUMNS
 
 
