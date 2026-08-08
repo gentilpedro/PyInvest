@@ -45,11 +45,26 @@ jobs:
 
       - name: Bump version and push tag
         id: tag
-        uses: anothrNick/github-tag-action@1.71.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WITH_V: true
-          DEFAULT_BUMP: patch
+        shell: pwsh
+        run: |
+          git fetch --tags --quiet
+
+          $tags = git tag --list "v*.*.*" | Where-Object { $_ -match '^v\d+\.\d+\.\d+$' }
+
+          if (-not $tags) {
+            $nextTag = "v1.0.0"
+          } else {
+            $latest = $tags | ForEach-Object { [version]($_.Substring(1)) } | Sort-Object | Select-Object -Last 1
+            $nextTag = "v$($latest.Major).$($latest.Minor).$($latest.Build + 1)"
+          }
+
+          Write-Host "Next tag: $nextTag"
+          "new_tag=$nextTag" >> $env:GITHUB_OUTPUT
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag $nextTag
+          git push origin $nextTag
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
