@@ -5,3 +5,4 @@ undetected-chromedriver
 lxml
 html5lib
 beautifulsoup4
+ttkbootstrap

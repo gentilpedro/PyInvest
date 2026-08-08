@@ -1,8 +1,11 @@
 import queue
 import tkinter as tk
-from tkinter import messagebox, filedialog, ttk
 
 import pandas as pd
+import ttkbootstrap as ttk
+from ttkbootstrap.constants import INFO, OUTLINE, PRIMARY, SECONDARY, SUCCESS
+from ttkbootstrap.dialogs import Messagebox
+from tkinter import filedialog
 
 from app.domain.filters.fii_filter import FiiFilter, FiiFilterCriteria
 from infra.writers.excel_writer import ExcelWriter
@@ -13,13 +16,12 @@ from ui.resources import resource_path
 TODOS_SEGMENTOS = "Todos"
 PVP_MAX_LIMIT = 100.0
 VACANCIA_MAX_LIMIT = 100.0
+THEME = "flatly"
 
 
-class MainWindow(tk.Tk):
+class MainWindow(ttk.Window):
     def __init__(self):
-        super().__init__()
-        self.title("PyInvest - Ranking de FIIs")
-        self.geometry("1200x700")
+        super().__init__(title="PyInvest — Ranking de FIIs", theme=THEME, size=(1300, 760), resizable=(True, True))
         self._set_icon()
 
         self.raw_df: pd.DataFrame | None = None
@@ -39,7 +41,7 @@ class MainWindow(tk.Tk):
         self.cap_rate_min_var = tk.DoubleVar(value=0.0)
         self.vacancia_max_var = tk.DoubleVar(value=VACANCIA_MAX_LIMIT)
         self.ticker_var = tk.StringVar(value="")
-        self.row_count_var = tk.StringVar(value="")
+        self.row_count_var = tk.StringVar(value="0 FIIs")
         self.status_var = tk.StringVar(value='Pronto. Clique em "Buscar dados" para começar.')
 
         self._build_ui()
@@ -56,97 +58,108 @@ class MainWindow(tk.Tk):
     # UI construction
     # ------------------------------------------------------------------
     def _build_ui(self):
-        self._build_filter_panel()
-        self._build_actions_row()
-        self._build_table()
+        container = ttk.Frame(self, padding=16)
+        container.pack(fill="both", expand=True)
+
+        self._build_filter_panel(container)
+        self._build_actions_row(container)
+        ttk.Separator(container).pack(fill="x", pady=(4, 10))
+        self._build_table(container)
         self._build_status_bar()
 
-    def _build_filter_panel(self):
-        panel = ttk.LabelFrame(self, text="Filtros")
-        panel.pack(fill="x", padx=8, pady=(8, 4))
+    def _build_filter_panel(self, parent):
+        panel = ttk.Labelframe(parent, text="Filtros", padding=14)
+        panel.pack(fill="x", pady=(0, 12))
 
-        self._add_spinbox(panel, 0, 0, "Dividend Yield mínimo (%):", self.dy_min_var, from_=0, to=100, increment=0.1)
-        self._add_spinbox(panel, 0, 1, "P/VP máximo:", self.pvp_max_var, from_=0, to=PVP_MAX_LIMIT, increment=0.01)
-        self._add_spinbox(
-            panel, 0, 2, "Liquidez diária mínima (R$):", self.liquidez_min_var,
-            from_=0, to=1_000_000_000, increment=1000, width=14,
-        )
-        self._add_spinbox(
-            panel, 0, 3, "FFO Yield mínimo (%):", self.ffo_yield_min_var, from_=0, to=100, increment=0.1
-        )
-        self._add_spinbox(
-            panel, 0, 4, "Valor de Mercado mínimo (R$):", self.valor_mercado_min_var,
-            from_=0, to=100_000_000_000, increment=1_000_000, width=16,
-        )
+        fields = [
+            ("Dividend Yield mínimo (%):", lambda p: ttk.Spinbox(
+                p, textvariable=self.dy_min_var, width=10, from_=0, to=100, increment=0.1
+            )),
+            ("P/VP máximo:", lambda p: ttk.Spinbox(
+                p, textvariable=self.pvp_max_var, width=10, from_=0, to=PVP_MAX_LIMIT, increment=0.01
+            )),
+            ("Liquidez diária mínima (R$):", lambda p: ttk.Spinbox(
+                p, textvariable=self.liquidez_min_var, width=14, from_=0, to=1_000_000_000, increment=1000
+            )),
+            ("FFO Yield mínimo (%):", lambda p: ttk.Spinbox(
+                p, textvariable=self.ffo_yield_min_var, width=10, from_=0, to=100, increment=0.1
+            )),
+            ("Valor de Mercado mínimo (R$):", lambda p: ttk.Spinbox(
+                p, textvariable=self.valor_mercado_min_var, width=16,
+                from_=0, to=100_000_000_000, increment=1_000_000,
+            )),
+            ("Qtd de imóveis mínima:", lambda p: ttk.Spinbox(
+                p, textvariable=self.qtd_imoveis_min_var, width=10, from_=0, to=1000, increment=1
+            )),
+            ("Cap Rate mínimo (%):", lambda p: ttk.Spinbox(
+                p, textvariable=self.cap_rate_min_var, width=10, from_=0, to=100, increment=0.1
+            )),
+            ("Vacância máxima (%):", lambda p: ttk.Spinbox(
+                p, textvariable=self.vacancia_max_var, width=10, from_=0, to=VACANCIA_MAX_LIMIT, increment=0.5
+            )),
+            ("Segmento:", lambda p: ttk.Combobox(
+                p, textvariable=self.segmento_var, state="readonly", values=[TODOS_SEGMENTOS], width=18
+            )),
+            ("Buscar ticker:", lambda p: ttk.Entry(p, textvariable=self.ticker_var, width=14)),
+        ]
 
-        self._add_spinbox(
-            panel, 1, 0, "Qtd de imóveis mínima:", self.qtd_imoveis_min_var, from_=0, to=1000, increment=1
-        )
-        self._add_spinbox(
-            panel, 1, 1, "Cap Rate mínimo (%):", self.cap_rate_min_var, from_=0, to=100, increment=0.1
-        )
-        self._add_spinbox(
-            panel, 1, 2, "Vacância máxima (%):", self.vacancia_max_var,
-            from_=0, to=VACANCIA_MAX_LIMIT, increment=0.5,
-        )
+        columns = 3
+        widgets = []
+        for i, (label_text, factory) in enumerate(fields):
+            row, col = divmod(i, columns)
+            ttk.Label(panel, text=label_text).grid(
+                row=row, column=col * 2, padx=(0 if col == 0 else 24, 6), pady=8, sticky="w"
+            )
+            widget = factory(panel)
+            widget.grid(row=row, column=col * 2 + 1, padx=6, pady=8, sticky="w")
+            widgets.append(widget)
 
-        ttk.Label(panel, text="Segmento:").grid(row=1, column=6, padx=6, pady=4, sticky="w")
-        self.segmento_combo = ttk.Combobox(
-            panel, textvariable=self.segmento_var, state="readonly", values=[TODOS_SEGMENTOS], width=18
-        )
-        self.segmento_combo.grid(row=1, column=7, padx=6, pady=4, sticky="w")
+        self.segmento_combo = widgets[8]
 
-        ttk.Label(panel, text="Buscar ticker:").grid(row=1, column=8, padx=6, pady=4, sticky="w")
-        ttk.Entry(panel, textvariable=self.ticker_var, width=12).grid(
-            row=1, column=9, padx=6, pady=4, sticky="w"
-        )
+    def _build_actions_row(self, parent):
+        row = ttk.Frame(parent)
+        row.pack(fill="x", pady=(0, 4))
 
-    def _add_spinbox(self, panel, row, col, label, var, width=10, **spin_kwargs):
-        ttk.Label(panel, text=label).grid(row=row, column=col * 2, padx=6, pady=4, sticky="w")
-        ttk.Spinbox(panel, textvariable=var, width=width, **spin_kwargs).grid(
-            row=row, column=col * 2 + 1, padx=6, pady=4, sticky="w"
-        )
-
-    def _build_actions_row(self):
-        row = ttk.Frame(self)
-        row.pack(fill="x", padx=8, pady=4)
-
-        self.fetch_button = ttk.Button(row, text="Buscar dados", command=self.on_fetch_clicked)
+        self.fetch_button = ttk.Button(row, text="Buscar dados", command=self.on_fetch_clicked, bootstyle=PRIMARY)
         self.fetch_button.pack(side="left")
 
         self.apply_filters_button = ttk.Button(
-            row, text="Aplicar filtros", command=self.on_apply_filters_clicked, state="disabled"
+            row, text="Aplicar filtros", command=self.on_apply_filters_clicked, bootstyle=INFO, state="disabled"
         )
-        self.apply_filters_button.pack(side="left", padx=(6, 0))
+        self.apply_filters_button.pack(side="left", padx=(8, 0))
 
         self.clear_filters_button = ttk.Button(
-            row, text="Limpar filtros", command=self.on_clear_filters_clicked, state="disabled"
+            row, text="Limpar filtros", command=self.on_clear_filters_clicked,
+            bootstyle=(SECONDARY, OUTLINE), state="disabled",
         )
-        self.clear_filters_button.pack(side="left", padx=(6, 0))
+        self.clear_filters_button.pack(side="left", padx=(8, 0))
 
-        ttk.Label(row, textvariable=self.row_count_var).pack(side="left", padx=20)
+        ttk.Label(row, textvariable=self.row_count_var, bootstyle=(INFO, "inverse"), padding=(10, 4)).pack(
+            side="left", padx=20
+        )
 
         self.save_button = ttk.Button(
-            row, text="Salvar como XLSX", command=self.on_save_clicked, state="disabled"
+            row, text="Salvar como XLSX", command=self.on_save_clicked, bootstyle=SUCCESS, state="disabled"
         )
         self.save_button.pack(side="right")
 
-    def _build_table(self):
-        self.table = FiiTable(self)
-        self.table.pack(fill="both", expand=True, padx=8, pady=4)
+    def _build_table(self, parent):
+        self.table = FiiTable(parent)
+        self.table.pack(fill="both", expand=True)
 
     def _build_status_bar(self):
-        bar = ttk.Label(self, textvariable=self.status_var, relief="sunken", anchor="w")
+        bar = ttk.Frame(self, padding=(16, 6))
         bar.pack(fill="x", side="bottom")
+        ttk.Label(bar, textvariable=self.status_var, bootstyle=SECONDARY).pack(side="left")
 
     # ------------------------------------------------------------------
     # Fetching
     # ------------------------------------------------------------------
     def on_fetch_clicked(self):
-        self.fetch_button.state(["disabled"])
-        self.apply_filters_button.state(["disabled"])
-        self.clear_filters_button.state(["disabled"])
-        self.save_button.state(["disabled"])
+        self.fetch_button.configure(state="disabled")
+        self.apply_filters_button.configure(state="disabled")
+        self.clear_filters_button.configure(state="disabled")
+        self.save_button.configure(state="disabled")
         self.status_var.set("Buscando dados no Fundamentus... isso pode levar alguns segundos.")
         self.config(cursor="watch")
 
@@ -169,10 +182,10 @@ class MainWindow(tk.Tk):
 
     def _on_fetch_finished(self, df: pd.DataFrame):
         self.config(cursor="")
-        self.fetch_button.state(["!disabled"])
-        self.apply_filters_button.state(["!disabled"])
-        self.clear_filters_button.state(["!disabled"])
-        self.save_button.state(["!disabled"])
+        self.fetch_button.configure(state="normal")
+        self.apply_filters_button.configure(state="normal")
+        self.clear_filters_button.configure(state="normal")
+        self.save_button.configure(state="normal")
 
         self.raw_df = df
 
@@ -185,9 +198,9 @@ class MainWindow(tk.Tk):
 
     def _on_fetch_failed(self, message: str):
         self.config(cursor="")
-        self.fetch_button.state(["!disabled"])
+        self.fetch_button.configure(state="normal")
         self.status_var.set("Falha ao buscar dados.")
-        messagebox.showerror("Erro ao buscar dados", message)
+        Messagebox.show_error(message, "Erro ao buscar dados", parent=self)
 
     # ------------------------------------------------------------------
     # Filtering
@@ -237,7 +250,7 @@ class MainWindow(tk.Tk):
     # ------------------------------------------------------------------
     def on_save_clicked(self):
         if self.filtered_df.empty:
-            messagebox.showinfo("Nada para salvar", "Não há dados para salvar.")
+            Messagebox.show_info("Não há dados para salvar.", "Nada para salvar", parent=self)
             return
 
         path = filedialog.asksaveasfilename(
@@ -252,7 +265,7 @@ class MainWindow(tk.Tk):
         try:
             self.writer.save_as(self.filtered_df, path)
         except Exception as exc:
-            messagebox.showerror("Erro ao salvar", str(exc))
+            Messagebox.show_error(str(exc), "Erro ao salvar", parent=self)
             return
 
         self.status_var.set(f"Arquivo salvo em: {path}")

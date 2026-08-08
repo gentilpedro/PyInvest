@@ -19,6 +19,7 @@ PyInstaller.__main__.run(
         "--add-data=assets/icon.ico;assets",
         "--collect-all=pandas",
         "--collect-all=openpyxl",
+        "--collect-all=ttkbootstrap",
         "--hidden-import=bs4",
         "--hidden-import=lxml",
         "--hidden-import=lxml.etree",
