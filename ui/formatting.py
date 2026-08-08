@@ -2,7 +2,7 @@ import math
 
 PERCENT_COLUMNS = {"FFO Yield", "Dividend Yield", "Cap Rate", "Vacância Média"}
 INTEGER_COLUMNS = {"Valor de Mercado", "Liquidez", "Qtd de imóveis"}
-DECIMAL_COLUMNS = {"Cotação", "P/VP", "Preço do m2", "Aluguel por m2"}
+DECIMAL_COLUMNS = {"Cotação", "P/VP", "Preço do m2", "Aluguel por m2", "Score"}
 NUMERIC_COLUMNS = PERCENT_COLUMNS | INTEGER_COLUMNS | DECIMAL_COLUMNS
 
 
