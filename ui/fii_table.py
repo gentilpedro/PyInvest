@@ -1,9 +1,12 @@
-import tkinter as tk
-from tkinter import ttk
+import ttkbootstrap as ttk
+from ttkbootstrap.constants import PRIMARY
 
 import pandas as pd
 
 from ui.formatting import NUMERIC_COLUMNS, format_value, sort_key
+
+STRIPE_TAG = "oddrow"
+STRIPE_COLOR = "#eef1f6"
 
 
 class FiiTable(ttk.Frame):
@@ -14,9 +17,11 @@ class FiiTable(ttk.Frame):
         self._sort_column: str | None = None
         self._sort_reverse = False
 
-        self.tree = ttk.Treeview(self, show="headings")
-        vsb = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview)
-        hsb = ttk.Scrollbar(self, orient="horizontal", command=self.tree.xview)
+        self.tree = ttk.Treeview(self, show="headings", bootstyle=PRIMARY)
+        self.tree.tag_configure(STRIPE_TAG, background=STRIPE_COLOR)
+
+        vsb = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview, bootstyle="round")
+        hsb = ttk.Scrollbar(self, orient="horizontal", command=self.tree.xview, bootstyle="round")
         self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
 
         self.tree.grid(row=0, column=0, sticky="nsew")
@@ -45,9 +50,10 @@ class FiiTable(ttk.Frame):
     def _populate(self):
         self.tree.delete(*self.tree.get_children())
         columns = list(self.df.columns)
-        for _, row in self.df.iterrows():
+        for i, (_, row) in enumerate(self.df.iterrows()):
             values = [format_value(col, row[col]) for col in columns]
-            self.tree.insert("", "end", values=values)
+            tags = (STRIPE_TAG,) if i % 2 == 1 else ()
+            self.tree.insert("", "end", values=values, tags=tags)
 
     def _sort_by(self, column: str):
         if self.df.empty:
