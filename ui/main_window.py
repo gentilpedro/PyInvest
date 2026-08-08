@@ -8,6 +8,7 @@ from app.domain.filters.fii_filter import FiiFilter, FiiFilterCriteria
 from infra.writers.excel_writer import ExcelWriter
 from ui.fetch_worker import FetchFiisWorker
 from ui.fii_table import FiiTable
+from ui.resources import resource_path
 
 TODOS_SEGMENTOS = "Todos"
 PVP_MAX_LIMIT = 100.0
@@ -19,6 +20,7 @@ class MainWindow(tk.Tk):
         super().__init__()
         self.title("PyInvest - Ranking de FIIs")
         self.geometry("1200x700")
+        self._set_icon()
 
         self.raw_df: pd.DataFrame | None = None
         self.filtered_df: pd.DataFrame = pd.DataFrame()
@@ -41,6 +43,14 @@ class MainWindow(tk.Tk):
         self.status_var = tk.StringVar(value='Pronto. Clique em "Buscar dados" para começar.')
 
         self._build_ui()
+
+    def _set_icon(self):
+        icon_path = resource_path("assets/icon.ico")
+        if icon_path.exists():
+            try:
+                self.iconbitmap(icon_path)
+            except tk.TclError:
+                pass
 
     # ------------------------------------------------------------------
     # UI construction

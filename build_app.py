@@ -15,6 +15,8 @@ PyInstaller.__main__.run(
         "--onefile",
         "--clean",
         "--noconfirm",
+        "--icon=assets/icon.ico",
+        "--add-data=assets/icon.ico;assets",
         "--collect-all=pandas",
         "--collect-all=openpyxl",
         "--hidden-import=bs4",

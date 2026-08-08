@@ -1,0 +1,46 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: pr-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-and-build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Validate - compile all sources
+        run: python -m compileall -q app infra ui main.py build_app.py
+
+      - name: Validate - import and instantiate the UI
+        run: |
+          python -c "from ui.main_window import MainWindow; w = MainWindow(); w.update(); w.destroy(); print('UI OK')"
+
+      - name: Build executable (smoke test)
+        run: python build_app.py
+
+      - name: Upload PyInvest.exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PyInvest-windows-pr-${{ github.event.pull_request.number }}
+          path: dist/PyInvest.exe
+          if-no-files-found: error
+          retention-days: 7
