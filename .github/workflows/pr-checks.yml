@@ -30,9 +30,8 @@ jobs:
       - name: Validate - compile all sources
         run: python -m compileall -q app infra ui main.py build_app.py
 
-      - name: Validate - import and instantiate the UI
-        run: |
-          python -c "from ui.main_window import MainWindow; w = MainWindow(); w.update(); w.destroy(); print('UI OK')"
+      - name: Run tests
+        run: pytest -v
 
       - name: Build executable (smoke test)
         run: python build_app.py
