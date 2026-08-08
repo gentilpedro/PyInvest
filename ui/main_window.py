@@ -12,7 +12,7 @@ from app.domain.ranking.fii_ranking import FiiRanking
 from infra.storage.filter_preset_store import FilterPresetStore
 from infra.writers.excel_writer import ExcelWriter
 from ui.fetch_worker import FetchFiisWorker
-from ui.fii_table import FiiTable
+from ui.fii_table import SCORE_HIGH_COLOR, SCORE_HIGH_THRESHOLD, SCORE_LOW_COLOR, SCORE_LOW_THRESHOLD, FiiTable
 from ui.resources import resource_path
 
 TODOS_SEGMENTOS = "Todos"
@@ -168,6 +168,17 @@ class MainWindow(ttk.Window):
         self.save_button.pack(side="right")
 
     def _build_table(self, parent):
+        legend = ttk.Frame(parent)
+        legend.pack(fill="x", pady=(0, 4))
+        ttk.Label(
+            legend, text="  ", background=SCORE_HIGH_COLOR, relief="solid", borderwidth=1
+        ).pack(side="left")
+        ttk.Label(legend, text=f" Score ≥ {SCORE_HIGH_THRESHOLD}", bootstyle=SECONDARY).pack(side="left", padx=(4, 16))
+        ttk.Label(
+            legend, text="  ", background=SCORE_LOW_COLOR, relief="solid", borderwidth=1
+        ).pack(side="left")
+        ttk.Label(legend, text=f" Score ≤ {SCORE_LOW_THRESHOLD}", bootstyle=SECONDARY).pack(side="left", padx=(4, 0))
+
         self.table = FiiTable(parent)
         self.table.pack(fill="both", expand=True)
 

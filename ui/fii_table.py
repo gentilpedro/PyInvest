@@ -3,10 +3,18 @@ from ttkbootstrap.constants import PRIMARY
 
 import pandas as pd
 
+from app.domain.ranking.fii_ranking import SCORE_COLUMN
 from ui.formatting import NUMERIC_COLUMNS, format_value, sort_key
 
 STRIPE_TAG = "oddrow"
 STRIPE_COLOR = "#eef1f6"
+
+SCORE_HIGH_TAG = "score-high"
+SCORE_LOW_TAG = "score-low"
+SCORE_HIGH_THRESHOLD = 65
+SCORE_LOW_THRESHOLD = 30
+SCORE_HIGH_COLOR = "#d7f2df"
+SCORE_LOW_COLOR = "#fbdede"
 
 
 class FiiTable(ttk.Frame):
@@ -19,6 +27,8 @@ class FiiTable(ttk.Frame):
 
         self.tree = ttk.Treeview(self, show="headings", bootstyle=PRIMARY)
         self.tree.tag_configure(STRIPE_TAG, background=STRIPE_COLOR)
+        self.tree.tag_configure(SCORE_HIGH_TAG, background=SCORE_HIGH_COLOR)
+        self.tree.tag_configure(SCORE_LOW_TAG, background=SCORE_LOW_COLOR)
 
         vsb = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview, bootstyle="round")
         hsb = ttk.Scrollbar(self, orient="horizontal", command=self.tree.xview, bootstyle="round")
@@ -52,8 +62,16 @@ class FiiTable(ttk.Frame):
         columns = list(self.df.columns)
         for i, (_, row) in enumerate(self.df.iterrows()):
             values = [format_value(col, row[col]) for col in columns]
-            tags = (STRIPE_TAG,) if i % 2 == 1 else ()
-            self.tree.insert("", "end", values=values, tags=tags)
+            self.tree.insert("", "end", values=values, tags=self._row_tags(row, i))
+
+    def _row_tags(self, row: pd.Series, index: int) -> tuple[str, ...]:
+        score = row.get(SCORE_COLUMN)
+        if score is not None and not pd.isna(score):
+            if score >= SCORE_HIGH_THRESHOLD:
+                return (SCORE_HIGH_TAG,)
+            if score <= SCORE_LOW_THRESHOLD:
+                return (SCORE_LOW_TAG,)
+        return (STRIPE_TAG,) if index % 2 == 1 else ()
 
     def _sort_by(self, column: str):
         if self.df.empty:
