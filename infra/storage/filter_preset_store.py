@@ -2,32 +2,38 @@ import json
 import os
 from dataclasses import asdict
 from pathlib import Path
+from typing import Type, TypeVar
 
-from app.domain.filters.fii_filter import FiiFilterCriteria
+CriteriaT = TypeVar("CriteriaT")
 
 
 class FilterPresetStore:
-    """Persists named FiiFilterCriteria presets as JSON in the user's app data folder."""
+    """Persists named filter-criteria presets as JSON in the user's app data folder.
 
-    def __init__(self, path: Path | None = None):
-        self.path = path or self._default_path()
+    Works with any dataclass (FiiFilterCriteria, StockFilterCriteria, ...);
+    pass the class so `load()` knows how to reconstruct it.
+    """
 
-    def _default_path(self) -> Path:
+    def __init__(self, criteria_cls: Type[CriteriaT], filename: str = "filter_presets.json", path: Path | None = None):
+        self.criteria_cls = criteria_cls
+        self.path = path or self._default_path(filename)
+
+    def _default_path(self, filename: str) -> Path:
         base = Path(os.environ.get("APPDATA", Path.home())) / "PyInvest"
         base.mkdir(parents=True, exist_ok=True)
-        return base / "filter_presets.json"
+        return base / filename
 
     def list_names(self) -> list[str]:
         return sorted(self._read_all().keys())
 
-    def save(self, name: str, criteria: FiiFilterCriteria):
+    def save(self, name: str, criteria: CriteriaT):
         presets = self._read_all()
         presets[name] = asdict(criteria)
         self._write_all(presets)
 
-    def load(self, name: str) -> FiiFilterCriteria:
+    def load(self, name: str) -> CriteriaT:
         presets = self._read_all()
-        return FiiFilterCriteria(**presets[name])
+        return self.criteria_cls(**presets[name])
 
     def delete(self, name: str):
         presets = self._read_all()

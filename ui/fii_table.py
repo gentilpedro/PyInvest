@@ -3,7 +3,7 @@ from ttkbootstrap.constants import PRIMARY
 
 import pandas as pd
 
-from app.domain.ranking.fii_ranking import SCORE_COLUMN
+from app.domain.ranking.percentile_ranking import SCORE_COLUMN
 from ui.formatting import NUMERIC_COLUMNS, format_value, sort_key
 
 STRIPE_TAG = "oddrow"
