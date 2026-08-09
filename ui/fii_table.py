@@ -1,3 +1,5 @@
+import tkinter as tk
+
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import PRIMARY
 
@@ -16,6 +18,21 @@ SCORE_LOW_THRESHOLD = 30
 SCORE_HIGH_COLOR = "#d7f2df"
 SCORE_LOW_COLOR = "#fbdede"
 
+# Plain tk.Scrollbar on purpose, not ttk/ttkbootstrap's themed Scrollbar:
+# under the "flatly" theme, a themed scrollbar linked to a Treeview costs
+# 300-1500ms to redraw every time this panel is mapped (e.g. every tab
+# switch in a Notebook) - unthemed scrollbars don't hit that theme-engine
+# redraw path and are effectively instant. See PR description for the
+# before/after measurements.
+SCROLLBAR_OPTS = dict(
+    background="#c8ccd0",
+    troughcolor="#f4f6f9",
+    activebackground="#a9aeb3",
+    relief="flat",
+    bd=0,
+    width=14,
+)
+
 
 class FiiTable(ttk.Frame):
     def __init__(self, master):
@@ -30,8 +47,8 @@ class FiiTable(ttk.Frame):
         self.tree.tag_configure(SCORE_HIGH_TAG, background=SCORE_HIGH_COLOR)
         self.tree.tag_configure(SCORE_LOW_TAG, background=SCORE_LOW_COLOR)
 
-        vsb = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview, bootstyle="round")
-        hsb = ttk.Scrollbar(self, orient="horizontal", command=self.tree.xview, bootstyle="round")
+        vsb = tk.Scrollbar(self, orient="vertical", command=self.tree.yview, **SCROLLBAR_OPTS)
+        hsb = tk.Scrollbar(self, orient="horizontal", command=self.tree.xview, **SCROLLBAR_OPTS)
         self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
 
         self.tree.grid(row=0, column=0, sticky="nsew")
